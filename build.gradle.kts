@@ -19,8 +19,7 @@ repositories {
     mavenCentral()
     mavenLocal()
     maven("https://repo.papermc.io/repository/maven-public/")
-    // JitPak: MineAuthリリースタグ確定後に有効化
-    // maven("https://jitpack.io")
+    maven("https://jitpack.io")
     maven("https://repo.betonquest.org/betonquest/")
     maven("https://repo.minebench.de/")
     maven("https://oss.sonatype.org/content/repositories/snapshots/")
