@@ -1,5 +1,5 @@
 [versions]
-paper = "1.21.8-R0.1-SNAPSHOT"
+paper = "1.21.11-R0.1-SNAPSHOT"
 cloud = "2.1.0-SNAPSHOT"
 cloudPaper = "2.0.0-SNAPSHOT"
 coroutine = "1.10.2"
