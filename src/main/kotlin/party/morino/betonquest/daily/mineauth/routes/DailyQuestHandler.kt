@@ -3,7 +3,6 @@ package party.morino.betonquest.daily.mineauth.routes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.betonquest.betonquest.BetonQuest
-import org.betonquest.betonquest.api.profile.Profile
 import org.betonquest.betonquest.database.PlayerData
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
@@ -56,14 +55,8 @@ class DailyQuestHandler {
         return withContext(Dispatchers.minecraft) {
             val betonQuest = BetonQuest.getInstance()
 
-            // UUIDからProfileを取得
-            val profile = betonQuest.profileProvider.getProfile(player.uniqueId)
-
-            // PlayerDataを取得（フォールバック用）
-            val playerData = betonQuest.playerDataStorage.getOffline(profile)
-
             // オブジェクティブデータを取得（オンライン/オフラインで取得元を切り替え）
-            val objectives = buildObjectivesMap(betonQuest, profile, player, playerData)
+            val objectives = buildObjectivesMap(betonQuest, player)
 
             // デイリークエスト情報をvariable objectiveデータから抽出
             val dailyQuests = try {
@@ -179,53 +172,58 @@ class DailyQuestHandler {
 
     /**
      * オブジェクティブデータのマップを構築する
-     * オンラインプレイヤーの場合はObjectiveインスタンスからリアルタイムデータを取得し、
-     * オフラインプレイヤーの場合はDBスナップショット（rawObjectives）を使用する
+     * オンラインプレイヤーの場合はOnlineProfileを使ってObjectiveインスタンスから
+     * リアルタイムデータを取得し、オフラインプレイヤーの場合はDBスナップショット（rawObjectives）を使用する
      *
-     * rawObjectivesはログイン時にDBからロードされた初期データであり、
-     * プレイ中のObjective進捗変更はObjectiveインスタンスの
-     * ObjectiveDataに保持されるため、ライブデータの取得が必要
+     * 重要: ProfileProvider.getProfile(UUID)はProfileを返すが、
+     * ProfileProvider.getProfile(Player)はOnlineProfileを返す。
+     * getPlayerObjectivesやgetDataでライブデータを取得するには
+     * OnlineProfileが必要なため、オンライン時はPlayer経由でプロファイルを取得する。
      *
      * @param betonQuest BetonQuestインスタンス
-     * @param profile プレイヤーのProfile
      * @param player 対象プレイヤー
-     * @param playerData フォールバック用のPlayerData
      * @return オブジェクティブID -> シリアライズデータのマップ
      */
     private fun buildObjectivesMap(
         betonQuest: BetonQuest,
-        profile: Profile,
-        player: OfflinePlayer,
-        playerData: PlayerData
+        player: OfflinePlayer
     ): Map<String, String> {
-        return try {
-            val isOnline = Bukkit.getPlayer(player.uniqueId) != null
-            if (isOnline) {
-                // オンライン: Objectiveインスタンスから最新データを取得
-                val activeObjectives = betonQuest.questTypeApi.getPlayerObjectives(profile)
+        val onlinePlayer = Bukkit.getPlayer(player.uniqueId)
+
+        if (onlinePlayer != null) {
+            // オンライン: OnlineProfileを取得してObjectiveからライブデータを取得
+            return try {
+                val onlineProfile = betonQuest.profileProvider.getProfile(onlinePlayer)
+                val activeObjectives = betonQuest.questTypeApi.getPlayerObjectives(onlineProfile)
                 activeObjectives.associate { objective ->
-                    objective.label.orEmpty() to objective.getData(profile).orEmpty()
+                    objective.label.orEmpty() to objective.getData(onlineProfile).orEmpty()
                 }
-            } else {
-                // オフライン: DBスナップショットを使用
-                rawObjectivesToMap(playerData)
-            }
-        } catch (e: Exception) {
-            // フォールバック: rawObjectivesを使用
-            try {
-                rawObjectivesToMap(playerData)
-            } catch (_: Exception) {
-                emptyMap()
+            } catch (e: Exception) {
+                // ライブデータ取得失敗時はrawObjectivesにフォールバック
+                rawObjectivesFromPlayer(betonQuest, player)
             }
         }
+
+        // オフライン: DBスナップショットを使用
+        return rawObjectivesFromPlayer(betonQuest, player)
     }
 
     /**
-     * PlayerDataのrawObjectivesをKotlin型安全なMapに変換する
+     * PlayerDataのrawObjectivesをUUID経由で取得する
+     * オフライン時またはライブデータ取得失敗時のフォールバック
      */
-    private fun rawObjectivesToMap(playerData: PlayerData): Map<String, String> {
-        return playerData.rawObjectives
-            .mapKeys { it.key.orEmpty() }
-            .mapValues { it.value?.toString().orEmpty() }
+    private fun rawObjectivesFromPlayer(
+        betonQuest: BetonQuest,
+        player: OfflinePlayer
+    ): Map<String, String> {
+        return try {
+            val profile = betonQuest.profileProvider.getProfile(player.uniqueId)
+            val playerData = betonQuest.playerDataStorage.getOffline(profile)
+            playerData.rawObjectives
+                .mapKeys { it.key.orEmpty() }
+                .mapValues { it.value?.toString().orEmpty() }
+        } catch (_: Exception) {
+            emptyMap()
+        }
     }
 }

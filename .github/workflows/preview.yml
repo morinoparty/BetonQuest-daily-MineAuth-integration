@@ -1,0 +1,140 @@
+name: preview.yml
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  PROJECT_NAME: BetonQuest-DailyQuest-MineAuth
+
+jobs:
+  # 共通の前処理：コミットSHAを取得
+  setup:
+    if: ${{ github.event.action != 'closed' }}
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.vars.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set short git commit SHA
+        id: vars
+        run: |
+          calculatedSha=$(git rev-parse --short HEAD)
+          echo "commit_sha=$calculatedSha" >> $GITHUB_OUTPUT
+
+  # Gradle ビルドジョブ
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    env:
+      COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p ./artifacts
+          mv ./build/libs/*-all.jar ./artifacts/${{ env.PROJECT_NAME }}-${{ env.COMMIT_SHORT_SHA }}.jar
+
+      # GitHub Attestations で署名
+      - name: Attest JAR artifact
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: './artifacts/*.jar'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preview-jar
+          path: ./artifacts
+          retention-days: 1
+
+  # GitHub Release にプレビュー版としてアップロード
+  upload-release:
+    needs: [setup, build]
+    runs-on: ubuntu-latest
+    env:
+      COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release_url: ${{ steps.create-release.outputs.release_url }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: preview-jar
+          path: ./artifacts
+
+      - name: Create preview release
+        id: create-release
+        run: |
+          TAG_NAME="preview-pr${{ github.event.pull_request.number }}-${{ env.COMMIT_SHORT_SHA }}"
+          RELEASE_URL=$(gh release create "$TAG_NAME" \
+            --title "🧪 Preview: PR #${{ github.event.pull_request.number }} (${{ env.COMMIT_SHORT_SHA }})" \
+            --notes "Preview build for PR #${{ github.event.pull_request.number }}
+
+          **Commit:** ${{ github.sha }}
+          **Branch:** ${{ github.head_ref }}
+
+          > ⚠️ This is a preview build and may be unstable.
+          > 📜 Verify with: \`gh attestation verify <jar-file> --owner morinoparty\`" \
+            --prerelease \
+            ./artifacts/*.jar)
+          echo "release_url=https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME" >> $GITHUB_OUTPUT
+
+  # PRコメント作成ジョブ
+  comment:
+    needs: [setup, upload-release]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.action == 'opened' || github.event.action == 'synchronize' }}
+    env:
+      COMMIT_SHORT_SHA: ${{ needs.setup.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Create comment file
+        env:
+          RELEASE_URL: "${{ needs.upload-release.outputs.release_url }}"
+          RELEASE_DOWNLOAD_BASE: "https://github.com/${{ github.repository }}/releases/download/preview-pr${{ github.event.pull_request.number }}-${{ env.COMMIT_SHORT_SHA }}"
+        run: |
+          JAR_NAME="${{ env.PROJECT_NAME }}-${{ env.COMMIT_SHORT_SHA }}.jar"
+
+          cat << EOF > comment.md
+          ## 🚀 Preview of ${{ github.event.repository.name }}
+
+          ### 📦 Preview JAR ([Release Page]($RELEASE_URL))
+          | Artifact | Download |
+          |----------|----------|
+          | Plugin | [${JAR_NAME}]($RELEASE_DOWNLOAD_BASE/${JAR_NAME}) |
+
+          > 📜 **Attestation**: \`gh attestation verify <jar-file> --owner morinoparty\`
+          EOF
+
+      - name: Create PR comment
+        run: gh pr comment ${{ github.event.number }} --body-file comment.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
