@@ -32,13 +32,6 @@ jobs:
       - name: Change wrapper permissions
         run: chmod +x ./gradlew
 
-      # MineAuth APIをmavenLocalに公開（依存解決用）
-      - name: Publish MineAuth API to mavenLocal
-        run: |
-          git clone --depth 1 https://github.com/morinoparty/MineAuth.git /tmp/MineAuth
-          cd /tmp/MineAuth
-          chmod +x ./gradlew
-          ./gradlew :api:publishToMavenLocal -x test
 
       - name: Build with Gradle
         run: ./gradlew build -x test
