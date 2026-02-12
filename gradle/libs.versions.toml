@@ -8,7 +8,7 @@ serialization = "1.9.0"
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paper" }
 betonquest = { group = "org.betonquest", name = "betonquest", version = "3.0.0-20250818.215240-364" }
-mineauth-api = { group = "com.github.morinoparty.MineAuth", name = "api", version = "master-SNAPSHOT" }
+mineauth-api = { group = "com.github.morinoparty.MineAuth", name = "mineauth-api", version = "v0.2.24" }
 
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutine" }
