@@ -72,7 +72,7 @@ tasks {
 sourceSets.main {
     resourceFactory {
         bukkitPluginYaml {
-            name = "BetonQuest-DailyQuest-MineAuth"
+            name = "BetonQuest-DailyQuest-MineAuth-integration"
             version = project.version.toString()
             website = "https://github.com/morinoparty/BetonQuest-daily-MineAuth-integration"
             main = "$group.betonquest.daily.mineauth.DailyQuestMineAuthPlugin"

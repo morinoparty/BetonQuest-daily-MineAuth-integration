@@ -7,6 +7,7 @@ import org.betonquest.betonquest.database.PlayerData
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
+import party.morino.betonquest.daily.mineauth.config.PluginConfig
 import party.morino.betonquest.daily.mineauth.data.ActionResponse
 import party.morino.betonquest.daily.mineauth.data.DailyQuestResponse
 import party.morino.betonquest.daily.mineauth.data.QuestSelectRequest
@@ -19,12 +20,18 @@ import party.morino.mineauth.api.annotations.PostMapping
 import party.morino.mineauth.api.annotations.RequestBody
 import party.morino.mineauth.api.http.HttpError
 import party.morino.mineauth.api.http.HttpStatus
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 
 /**
  * デイリークエスト情報を提供するハンドラー
  * /api/v1/plugins/{plugin-name}/ 配下にエンドポイントを提供する
  */
-class DailyQuestHandler {
+class DailyQuestHandler(
+    private val config: PluginConfig
+) {
 
     private companion object {
         // リロールイベントのパッケージ名とイベント名
@@ -46,6 +53,9 @@ class DailyQuestHandler {
      * 認証済みプレイヤーのデイリークエストデータを取得する
      * GET /daily-quests/me
      *
+     * オフラインプレイヤーでリセット時刻を跨いでいる場合、
+     * DBのデータは前日のものであるため空リストを返す
+     *
      * @param player 認証済みプレイヤー（JWTから自動解決）
      * @return デイリークエストの進捗情報
      */
@@ -53,6 +63,13 @@ class DailyQuestHandler {
     suspend fun getMyDailyQuests(@Authenticated player: OfflinePlayer): DailyQuestResponse {
         // Bukkit APIはメインスレッドで実行する必要がある
         return withContext(Dispatchers.minecraft) {
+            val isOnline = Bukkit.getPlayer(player.uniqueId) != null
+
+            // オフラインかつリセット時刻を超えている場合はデータが古いため空を返す
+            if (!isOnline && isQuestDataStale(player)) {
+                return@withContext DailyQuestResponse(dailyQuests = emptyList())
+            }
+
             val betonQuest = BetonQuest.getInstance()
 
             // オブジェクティブデータを取得（オンライン/オフラインで取得元を切り替え）
@@ -168,6 +185,51 @@ class DailyQuestHandler {
     private fun requireOnlinePlayer(player: OfflinePlayer): Player {
         return Bukkit.getPlayer(player.uniqueId)
             ?: throw HttpError(HttpStatus.BAD_REQUEST, "Player must be online to perform this action", emptyMap())
+    }
+
+    /**
+     * オフラインプレイヤーのクエストデータが古いかどうかを判定する
+     *
+     * プレイヤーの最終ログイン時刻が直近のデイリーリセット時刻より前の場合、
+     * DBに保存されたクエストデータはリセット前のものであるためstaleと判定する
+     *
+     * @param player 対象のオフラインプレイヤー
+     * @return データが古い場合true
+     */
+    private fun isQuestDataStale(player: OfflinePlayer): Boolean {
+        val lastLogin = player.lastLogin
+        // 一度もログインしていない場合はデータ無し
+        if (lastLogin == 0L) return true
+
+        val serverZone = ZoneId.systemDefault()
+        val lastLoginInstant = Instant.ofEpochMilli(lastLogin)
+        val lastResetInstant = calculateLastResetTime(config.dailyResetTime, serverZone)
+
+        // 最終ログインがリセット時刻より前ならデータは古い
+        return lastLoginInstant.isBefore(lastResetInstant)
+    }
+
+    /**
+     * 直近のデイリーリセット時刻を算出する
+     *
+     * 例: リセット時刻が04:00の場合
+     * - 現在06:00 → 今日の04:00
+     * - 現在02:00 → 昨日の04:00
+     *
+     * @param resetTime リセット時刻
+     * @param zone サーバーのタイムゾーン
+     * @return 直近のリセット時刻のInstant
+     */
+    private fun calculateLastResetTime(resetTime: LocalTime, zone: ZoneId): Instant {
+        val now = Instant.now().atZone(zone)
+        val todayReset = LocalDate.now(zone).atTime(resetTime).atZone(zone).toInstant()
+
+        // 現在時刻がリセット時刻を過ぎていれば今日のリセット、そうでなければ昨日のリセット
+        return if (now.toInstant().isAfter(todayReset) || now.toInstant() == todayReset) {
+            todayReset
+        } else {
+            LocalDate.now(zone).minusDays(1).atTime(resetTime).atZone(zone).toInstant()
+        }
     }
 
     /**

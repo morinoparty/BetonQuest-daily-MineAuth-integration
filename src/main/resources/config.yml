@@ -1,0 +1,5 @@
+# BetonQuest-DailyQuest-MineAuth-integration 設定ファイル
+
+# デイリークエストのリセット時刻（HH:mm形式）
+# BetonQuestのScheduleReset#scheduleと一致させてください
+daily-reset-time: "04:00"

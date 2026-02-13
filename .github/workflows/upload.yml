@@ -36,24 +36,24 @@ jobs:
 
       - name: Update version in gradle.properties
         run: |
-          sed -i "s/version=.*/version=${{ env.PLUGIN_VERSION }}/" ./gradle.properties
+          sed -i "s/VersionPlaceholder/${{ env.PLUGIN_VERSION }}/" ./gradle.properties
 
       - name: Build with Gradle
         run: ./gradlew build -x test --parallel
 
       - name: Rename artifact
         run: |
-          mv ./build/libs/*-all.jar ./build/libs/BetonQuest-DailyQuest-MineAuth-${{ env.PLUGIN_VERSION }}.jar
+          mv ./build/libs/*-all.jar ./build/libs/BetonQuest-DailyQuest-MineAuth-integration-${{ env.PLUGIN_VERSION }}.jar
 
       # GitHub Attestations で署名
       - name: Attest JAR artifact
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: './build/libs/BetonQuest-DailyQuest-MineAuth-${{ env.PLUGIN_VERSION }}.jar'
+          subject-path: './build/libs/BetonQuest-DailyQuest-MineAuth-integration-${{ env.PLUGIN_VERSION }}.jar'
 
       # GitHub Release にアップロード
       - name: Upload to GitHub Release
         run: |
           gh release upload ${{ github.event.release.tag_name }} \
-            ./build/libs/BetonQuest-DailyQuest-MineAuth-${{ env.PLUGIN_VERSION }}.jar \
+            ./build/libs/BetonQuest-DailyQuest-MineAuth-integration-${{ env.PLUGIN_VERSION }}.jar \
             --clobber
