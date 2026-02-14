@@ -1,6 +1,7 @@
 package party.morino.betonquest.daily.mineauth
 
 import org.bukkit.plugin.java.JavaPlugin
+import party.morino.betonquest.daily.mineauth.config.PluginConfig
 import party.morino.betonquest.daily.mineauth.routes.DailyQuestHandler
 import party.morino.mineauth.api.MineAuthAPI
 
@@ -11,9 +12,15 @@ import party.morino.mineauth.api.MineAuthAPI
 class DailyQuestMineAuthPlugin : JavaPlugin() {
 
     private lateinit var mineAuthAPI: MineAuthAPI
+    private lateinit var pluginConfig: PluginConfig
 
     override fun onEnable() {
         logger.info("BetonQuest DailyQuest MineAuth integration enabling...")
+
+        // config.ymlの読み込み
+        saveDefaultConfig()
+        pluginConfig = PluginConfig.fromBukkitConfig(config)
+        logger.info("Daily reset time: ${pluginConfig.dailyResetTime}")
 
         // MineAuthAPIの取得
         val mineAuthPlugin = server.pluginManager.getPlugin("MineAuth")
@@ -60,6 +67,6 @@ class DailyQuestMineAuthPlugin : JavaPlugin() {
      */
     private fun setupMineAuth() {
         mineAuthAPI.createHandler(this)
-            .register(DailyQuestHandler())
+            .register(DailyQuestHandler(pluginConfig))
     }
 }

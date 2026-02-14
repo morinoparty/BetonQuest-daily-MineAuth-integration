@@ -61,7 +61,7 @@ tasks {
     runServer {
         minecraftVersion("1.21.4")
         val plugins = runPaper.downloadPluginsSpec {
-            url("https://repo.betonquest.org/betonquest/org/betonquest/betonquest/3.0.0-SNAPSHOT/betonquest-3.0.0-20250818.215240-364-shaded.jar")
+            url("https://repo.betonquest.org/betonquest/org/betonquest/betonquest/3.0.0-SNAPSHOT/betonquest-3.0.0-20250713.111222-343-shaded.jar")
         }
         downloadPlugins {
             downloadPlugins.from(plugins)
@@ -72,7 +72,7 @@ tasks {
 sourceSets.main {
     resourceFactory {
         bukkitPluginYaml {
-            name = "BetonQuest-DailyQuest-MineAuth"
+            name = "BetonQuest-DailyQuest-MineAuth-integration"
             version = project.version.toString()
             website = "https://github.com/morinoparty/BetonQuest-daily-MineAuth-integration"
             main = "$group.betonquest.daily.mineauth.DailyQuestMineAuthPlugin"

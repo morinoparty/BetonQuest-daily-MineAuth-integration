@@ -32,6 +32,15 @@ jobs:
       - name: Change wrapper permissions
         run: chmod +x ./gradlew
 
+      - name: Set short git commit SHA
+        id: vars
+        run: |
+          calculatedSha=$(git rev-parse --short HEAD)
+          echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_ENV
+
+      - name: Set version from commit SHA
+        run: |
+          sed -i "s/VersionPlaceholder/${{ env.COMMIT_SHORT_SHA }}/" ./gradle.properties
 
       - name: Build with Gradle
         run: ./gradlew build -x test
