@@ -256,7 +256,7 @@ class DailyQuestHandler(
             // オンライン: OnlineProfileを取得してObjectiveからライブデータを取得
             return try {
                 val onlineProfile = betonQuest.profileProvider.getProfile(onlinePlayer)
-                val activeObjectives = betonQuest.questTypeApi.getPlayerObjectives(onlineProfile)
+                val activeObjectives = betonQuest.questTypeAPI.getPlayerObjectives(onlineProfile)
                 activeObjectives.associate { objective ->
                     objective.label.orEmpty() to objective.getData(onlineProfile).orEmpty()
                 }

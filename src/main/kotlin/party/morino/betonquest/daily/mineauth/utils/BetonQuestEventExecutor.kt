@@ -3,11 +3,11 @@ package party.morino.betonquest.daily.mineauth.utils
 import org.betonquest.betonquest.BetonQuest
 import org.betonquest.betonquest.api.quest.QuestException
 import org.betonquest.betonquest.api.profile.Profile
-import org.betonquest.betonquest.api.quest.event.EventID
+import org.betonquest.betonquest.id.EventID
 
 /**
  * BetonQuestのイベントを実行するユーティリティ
- * QuestTypeApiを使用してプロファイルに対してイベントを発火する
+ * QuestTypeAPIを使用してプロファイルに対してイベントを発火する
  *
  * 重要: このクラスのメソッドはBukkitメインスレッドで呼び出す必要がある
  */
@@ -30,11 +30,11 @@ object BetonQuestEventExecutor {
         val betonQuest = BetonQuest.getInstance()
 
         // パッケージを取得
-        val questPackage = betonQuest.questPackageManager.getPackage(packageName)
+        val questPackage = betonQuest.packages[packageName]
             ?: throw QuestException("Quest package not found: $packageName")
 
         // EventIDを構築してイベントを実行
-        val eventId = EventID(betonQuest.questPackageManager, questPackage, eventName)
-        return betonQuest.questTypeApi.event(profile, eventId)
+        val eventId = EventID(questPackage, eventName)
+        return betonQuest.questTypeAPI.event(profile, eventId)
     }
 }
