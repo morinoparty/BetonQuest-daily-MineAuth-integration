@@ -4,3 +4,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # BetonQuest はサーバーのバージョンに合わせて固定しており、
+      # repo.betonquest.org の参照で private_source_authentication_failure となり Dependabot Updates が毎回失敗するため除外する
+      - dependency-name: "org.betonquest:betonquest"
