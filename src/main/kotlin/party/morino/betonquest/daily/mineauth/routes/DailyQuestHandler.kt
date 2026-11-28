@@ -29,8 +29,8 @@ import party.morino.mineauth.api.http.HttpStatus
  * デイリークエスト情報を提供するハンドラー
  * /api/v1/plugins/dailyquest/ 配下にエンドポイントを提供する
  *
- * 受注・リロールはプレイヤーが資源サーバーにいなくても実行できる。
- * BetonQuest 3.3.0 のアクションはオフラインの Profile でも動き、タグ・ポイント・objective の変更は DB に保存される
+ * 受注・リロールはプレイヤーが資源サーバーにいるときだけ実行できる。
+ * オフラインの Profile では objective がメモリ上で有効にならず、variable アクション（InternalManager / DisplayStorage への登録）が失敗するため
  *
  * @param api BetonQuest の API
  */
@@ -100,8 +100,8 @@ class DailyQuestHandler(
     @Authenticated
     suspend fun rerollDailyQuests(@Caller caller: Principal.User): ActionResponse {
         return withContext(Dispatchers.minecraft) {
-            // サーバーにいなくても、オフラインの Profile でアクションを実行する
-            val profile = profileOf(caller)
+            // アクションの実行にはオンラインプレイヤーが必要（BetonQuest の OnlineProfile）
+            val profile = api.profiles().getProfile(requireOnlinePlayer(caller))
             runScript("reroll") {
                 val success = scripts.runAction(profile, QuestFileLayout.DAILY_QUEST_PACKAGE, QuestFileLayout.REROLL_ACTION)
                 if (success) {
@@ -139,7 +139,7 @@ class DailyQuestHandler(
         val selectorAction = QuestFileLayout.SELECTOR_ACTIONS.getValue(difficulty)
 
         return withContext(Dispatchers.minecraft) {
-            val profile = profileOf(caller)
+            val profile = api.profiles().getProfile(requireOnlinePlayer(caller))
             val playerData = api.persistence().of(profile)
 
             // 受注済みなら何もしない（会話でも未受注のときしか選択肢が出ない）
@@ -190,10 +190,19 @@ class DailyQuestHandler(
         if (onlinePlayer != null) api.profiles().getProfile(onlinePlayer) else api.profiles().getProfile(player)
 
     /**
-     * 認証済みプレイヤーの Profile を返す（オンラインなら OnlineProfile）
+     * プレイヤーが資源サーバーにオンラインであることを確認する
+     *
+     * オフラインの Profile では variable objective に値を書けず、受注が途中で失敗して
+     * QuestRepair の Main$forceDestroy（リロールのポイントも消える）が走るため、オフラインは 400 で断る
+     *
+     * @param caller 認証済みプレイヤー
+     * @return オンラインの Player インスタンス
+     * @throws HttpError プレイヤーがオフラインの場合
      */
-    private fun profileOf(caller: Principal.User): Profile =
-        profileOf(caller.offlinePlayer, Bukkit.getPlayer(caller.uuid))
+    private fun requireOnlinePlayer(caller: Principal.User): Player {
+        return Bukkit.getPlayer(caller.uuid)
+            ?: throw HttpError(HttpStatus.BAD_REQUEST, "Player must be online to perform this action", "player_offline")
+    }
 
 
 
