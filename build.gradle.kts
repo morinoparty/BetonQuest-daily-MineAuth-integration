@@ -39,7 +39,7 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
 }
 
 tasks {
@@ -47,7 +47,7 @@ tasks {
         dependsOn("shadowJar")
     }
     compileKotlin {
-        compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+        compilerOptions.jvmTarget.set(JvmTarget.JVM_25)
         compilerOptions.javaParameters = true
     }
     shadowJar {
@@ -59,7 +59,7 @@ tasks {
         }
     }
     runServer {
-        minecraftVersion("1.21.4")
+        minecraftVersion("26.3")
         val plugins = runPaper.downloadPluginsSpec {
             url("https://repo.betonquest.org/betonquest/org/betonquest/betonquest/3.0.0-SNAPSHOT/betonquest-3.0.0-20250713.111222-343-shaded.jar")
         }
