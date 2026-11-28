@@ -48,24 +48,6 @@ object QuestFileLayout {
     // リロールの残り回数を持つポイント
     const val REROLL_POINT = "$DAILY_QUEST_PACKAGE${SEPARATOR}reroll"
 
-    // 受注の流れ。ゲーム内の会話（daily_quest の 1_answer_*）と同じ順で実行する
-    const val MAIN_DESTROY_ACTION = "Main\$destroy"
-    const val MAIN_INITIALIZE_ACTION = "Main\$initialize"
-
-    // 受注後に登録数が足りないかの判定と、その修復（会話の 2_repair と同じ）
-    const val QUEST_REPAIR_CONDITION = "QuestRepair\$shouldRepair"
-    const val QUEST_REPAIR_ACTION = "QuestRepair\$start"
-
-    // リロール（ポイントの消費と、目標達成済みのクエストが無いかの判定はアクション側の条件で行われる）
-    const val REROLL_ACTION = "Reroll\$start"
-
-    // 難易度 -> QuestSelector の抽選アクション名
-    val SELECTOR_ACTIONS: Map<QuestDifficulty, String> = mapOf(
-        QuestDifficulty.EASY to "QuestSelector\$selectRandomEasyDailyQuests",
-        QuestDifficulty.NORMAL to "QuestSelector\$selectRandomNormalDailyQuests",
-        QuestDifficulty.HARD to "QuestSelector\$selectRandomHardDailyQuests"
-    )
-
     /**
      * クエストパッケージ内の objective の完全な ID を組み立てる
      *

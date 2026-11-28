@@ -10,7 +10,7 @@ import kotlinx.serialization.Serializable
 data class DailyQuestResponse(
     // その日のデイリークエストを受注済みか（false の間は dailyQuests を表示しない）
     val ordered: Boolean,
-    // プレイヤーが資源サーバーにオンラインか（受注・リロールはオンライン中のみ実行できる）
+    // プレイヤーが資源サーバーにオンラインか（オンライン中は進捗をライブの値から求める）
     val online: Boolean,
     // リロールの残り回数
     val rerollCharges: Int,
