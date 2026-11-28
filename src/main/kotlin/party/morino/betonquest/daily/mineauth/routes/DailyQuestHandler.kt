@@ -8,7 +8,6 @@ import org.betonquest.betonquest.api.profile.Profile
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
-import party.morino.betonquest.daily.mineauth.config.PluginConfig
 import party.morino.betonquest.daily.mineauth.data.ActionResponse
 import party.morino.betonquest.daily.mineauth.data.DailyQuestResponse
 import party.morino.betonquest.daily.mineauth.data.QuestSelectRequest
@@ -25,20 +24,17 @@ import party.morino.mineauth.api.annotations.Post
 import party.morino.mineauth.api.auth.Principal
 import party.morino.mineauth.api.http.HttpError
 import party.morino.mineauth.api.http.HttpStatus
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
 
 /**
  * デイリークエスト情報を提供するハンドラー
  * /api/v1/plugins/dailyquest/ 配下にエンドポイントを提供する
  *
- * @param config プラグイン設定
+ * 受注・リロールはプレイヤーが資源サーバーにいなくても実行できる。
+ * BetonQuest 3.3.0 のアクションはオフラインの Profile でも動き、タグ・ポイント・objective の変更は DB に保存される
+ *
  * @param api BetonQuest の API
  */
 class DailyQuestHandler(
-    private val config: PluginConfig,
     private val api: BetonQuestApi
 ) {
 
@@ -49,8 +45,8 @@ class DailyQuestHandler(
      * 認証済みプレイヤーのデイリークエストデータを取得する
      * GET /daily-quests/me
      *
-     * オフラインプレイヤーでリセット時刻を跨いでいる場合、
-     * DBのデータは前日のものであるため未受注として返す
+     * 04:00 のリセット（ScheduleReset$start の tag delete）はオフラインのプレイヤーのタグも DB からまとめて消すため、
+     * 受注タグがあればその日に受注したものとして扱う
      *
      * @param caller 認証済みプレイヤー
      * @return デイリークエストの進捗情報
@@ -67,9 +63,8 @@ class DailyQuestHandler(
             val playerData = api.persistence().of(profile)
             val rerollCharges = playerData.points().get(QuestFileLayout.REROLL_POINT).orElse(0)
 
-            // 受注タグが無い、またはオフライン中にリセット時刻を跨いだ場合は、その日のクエストは無い
-            val ordered = playerData.tags().has(QuestFileLayout.MAIN_INITIALIZED_TAG) &&
-                (onlinePlayer != null || !isQuestDataStale(player))
+            // 受注タグが無ければ、その日のクエストは無い
+            val ordered = playerData.tags().has(QuestFileLayout.MAIN_INITIALIZED_TAG)
             if (!ordered) {
                 return@withContext DailyQuestResponse(
                     ordered = false,
@@ -105,8 +100,8 @@ class DailyQuestHandler(
     @Authenticated
     suspend fun rerollDailyQuests(@Caller caller: Principal.User): ActionResponse {
         return withContext(Dispatchers.minecraft) {
-            // アクションの実行にはオンラインプレイヤーが必要（BetonQuest の OnlineProfile）
-            val profile = api.profiles().getProfile(requireOnlinePlayer(caller))
+            // サーバーにいなくても、オフラインの Profile でアクションを実行する
+            val profile = profileOf(caller)
             runScript("reroll") {
                 val success = scripts.runAction(profile, QuestFileLayout.DAILY_QUEST_PACKAGE, QuestFileLayout.REROLL_ACTION)
                 if (success) {
@@ -144,7 +139,7 @@ class DailyQuestHandler(
         val selectorAction = QuestFileLayout.SELECTOR_ACTIONS.getValue(difficulty)
 
         return withContext(Dispatchers.minecraft) {
-            val profile = api.profiles().getProfile(requireOnlinePlayer(caller))
+            val profile = profileOf(caller)
             val playerData = api.persistence().of(profile)
 
             // 受注済みなら何もしない（会話でも未受注のときしか選択肢が出ない）
@@ -186,19 +181,6 @@ class DailyQuestHandler(
         throw HttpError(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to $label: ${e.message}")
     }
 
-    /**
-     * プレイヤーがオンラインであることを確認する
-     * BetonQuest のアクション実行には OnlineProfile が必要なため、
-     * オフラインプレイヤーの場合は HTTP エラーを返す
-     *
-     * @param caller 認証済みプレイヤー
-     * @return オンラインの Player インスタンス
-     * @throws HttpError プレイヤーがオフラインの場合
-     */
-    private fun requireOnlinePlayer(caller: Principal.User): Player {
-        return Bukkit.getPlayer(caller.uuid)
-            ?: throw HttpError(HttpStatus.BAD_REQUEST, "Player must be online to perform this action", "player_offline")
-    }
 
     /**
      * オンラインなら OnlineProfile、オフラインなら Profile を返す
@@ -208,50 +190,12 @@ class DailyQuestHandler(
         if (onlinePlayer != null) api.profiles().getProfile(onlinePlayer) else api.profiles().getProfile(player)
 
     /**
-     * オフラインプレイヤーのクエストデータが古いかどうかを判定する
-     *
-     * プレイヤーの最終ログイン時刻が直近のデイリーリセット時刻より前の場合、
-     * DBに保存されたクエストデータはリセット前のものであるためstaleと判定する
-     *
-     * @param player 対象のオフラインプレイヤー
-     * @return データが古い場合true
+     * 認証済みプレイヤーの Profile を返す（オンラインなら OnlineProfile）
      */
-    private fun isQuestDataStale(player: OfflinePlayer): Boolean {
-        val lastLogin = player.lastLogin
-        // 一度もログインしていない場合はデータ無し
-        if (lastLogin == 0L) return true
+    private fun profileOf(caller: Principal.User): Profile =
+        profileOf(caller.offlinePlayer, Bukkit.getPlayer(caller.uuid))
 
-        val serverZone = ZoneId.systemDefault()
-        val lastLoginInstant = Instant.ofEpochMilli(lastLogin)
-        val lastResetInstant = calculateLastResetTime(config.dailyResetTime, serverZone)
 
-        // 最終ログインがリセット時刻より前ならデータは古い
-        return lastLoginInstant.isBefore(lastResetInstant)
-    }
-
-    /**
-     * 直近のデイリーリセット時刻を算出する
-     *
-     * 例: リセット時刻が04:00の場合
-     * - 現在06:00 → 今日の04:00
-     * - 現在02:00 → 昨日の04:00
-     *
-     * @param resetTime リセット時刻
-     * @param zone サーバーのタイムゾーン
-     * @return 直近のリセット時刻のInstant
-     */
-    private fun calculateLastResetTime(resetTime: LocalTime, zone: ZoneId): Instant {
-        val now = Instant.now()
-        val today = LocalDate.now(zone)
-        val todayReset = today.atTime(resetTime).atZone(zone).toInstant()
-
-        // 現在時刻がリセット時刻を過ぎていれば今日のリセット、そうでなければ昨日のリセット
-        return if (!now.isBefore(todayReset)) {
-            todayReset
-        } else {
-            today.minusDays(1).atTime(resetTime).atZone(zone).toInstant()
-        }
-    }
 
     /**
      * オブジェクティブデータのマップを構築する

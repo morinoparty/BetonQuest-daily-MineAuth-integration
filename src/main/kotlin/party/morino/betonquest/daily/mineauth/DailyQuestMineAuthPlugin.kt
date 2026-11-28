@@ -2,7 +2,6 @@ package party.morino.betonquest.daily.mineauth
 
 import org.betonquest.betonquest.api.BetonQuestApiService
 import org.bukkit.plugin.java.JavaPlugin
-import party.morino.betonquest.daily.mineauth.config.PluginConfig
 import party.morino.betonquest.daily.mineauth.routes.DailyQuestHandler
 import party.morino.mineauth.api.EndpointRegistrationException
 import party.morino.mineauth.api.MineAuthApi
@@ -21,11 +20,6 @@ class DailyQuestMineAuthPlugin : JavaPlugin() {
     override fun onEnable() {
         logger.info("BetonQuest DailyQuest MineAuth integration enabling...")
 
-        // config.ymlの読み込み
-        saveDefaultConfig()
-        val pluginConfig = PluginConfig.fromBukkitConfig(config)
-        logger.info("Daily reset time: ${pluginConfig.dailyResetTime}")
-
         // BetonQuest 3.2.0 以降は ServicesManager 経由で API を取得する
         val betonQuestApi = BetonQuestApiService.get().orElse(null)?.api(this)
         if (betonQuestApi == null) {
@@ -43,7 +37,7 @@ class DailyQuestMineAuthPlugin : JavaPlugin() {
         }
 
         try {
-            val registration = mineAuthApi.register(this, MINEAUTH_NAMESPACE, DailyQuestHandler(pluginConfig, betonQuestApi))
+            val registration = mineAuthApi.register(this, MINEAUTH_NAMESPACE, DailyQuestHandler(betonQuestApi))
             logger.info("Mounted ${registration.endpoints.size} endpoints under ${registration.basePath}")
         } catch (e: EndpointRegistrationException) {
             // 登録は all-or-nothing のため、検証エラーの詳細をログに出す
