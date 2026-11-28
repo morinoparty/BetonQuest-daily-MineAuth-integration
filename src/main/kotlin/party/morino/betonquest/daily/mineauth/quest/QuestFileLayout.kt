@@ -1,14 +1,14 @@
 package party.morino.betonquest.daily.mineauth.quest
 
 /**
- * NotEnoughQuest-QuestFiles (v2.1.x, BetonQuest 3.2.0) のパッケージ・オブジェクティブ・アクション名
+ * NotEnoughQuest-QuestFiles (v2.1.x, BetonQuest 3.3.0) のパッケージ・オブジェクティブ・アクション名
  *
  * クエストファイル側で名前が変わったときは、このファイルだけを直せば追従できるようにまとめている
  * https://github.com/morinoparty/NotEnoughQuest-QuestFiles
  */
 object QuestFileLayout {
 
-    // BetonQuest 3.2.0 の ID 区切り文字（"<パッケージ>><名前>"）
+    // BetonQuest 3.2.0 以降の ID 区切り文字（"<パッケージ>><名前>"）
     const val SEPARATOR = ">"
 
     // デイリークエスト全体を管理するパッケージ（Main / Reroll / QuestRepair などが置かれる）

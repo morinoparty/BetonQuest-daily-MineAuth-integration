@@ -63,7 +63,7 @@ tasks {
     runServer {
         minecraftVersion("26.3")
         val plugins = runPaper.downloadPluginsSpec {
-            url("https://repo.betonquest.org/betonquest/org/betonquest/betonquest/3.2.0/betonquest-3.2.0-shaded.jar")
+            url("https://repo.betonquest.org/betonquest/org/betonquest/betonquest/3.3.0/betonquest-3.3.0-shaded.jar")
         }
         downloadPlugins {
             downloadPlugins.from(plugins)

@@ -63,7 +63,8 @@ class DailyQuestHandler(
             val player = caller.offlinePlayer
             val onlinePlayer = Bukkit.getPlayer(caller.uuid)
             val profile = profileOf(player, onlinePlayer)
-            val playerData = BetonQuest.getInstance().playerDataStorage.getOffline(profile)
+            // タグとポイントは公開 API から読む（内部の PlayerDataStorage はバージョンごとにシグネチャが変わるため）
+            val playerData = api.persistence().of(profile)
             val rerollCharges = playerData.points().get(QuestFileLayout.REROLL_POINT).orElse(0)
 
             // 受注タグが無い、またはオフライン中にリセット時刻を跨いだ場合は、その日のクエストは無い
@@ -144,7 +145,7 @@ class DailyQuestHandler(
 
         return withContext(Dispatchers.minecraft) {
             val profile = api.profiles().getProfile(requireOnlinePlayer(caller))
-            val playerData = BetonQuest.getInstance().playerDataStorage.get(profile)
+            val playerData = api.persistence().of(profile)
 
             // 受注済みなら何もしない（会話でも未受注のときしか選択肢が出ない）
             if (playerData.tags().has(QuestFileLayout.MAIN_INITIALIZED_TAG)) {
@@ -308,11 +309,16 @@ class DailyQuestHandler(
     /**
      * PlayerDataのrawObjectivesを取得する
      * オフライン時またはライブデータ取得失敗時のフォールバック
+     *
+     * objective の保存データは公開 API に無いため内部 API を使う。
+     * BetonQuest の更新でシグネチャが変わっても API 全体を落とさないよう、LinkageError も空として扱う
      */
     private fun rawObjectives(profile: Profile): Map<String, String> {
         return try {
-            BetonQuest.getInstance().playerDataStorage.getOffline(profile).rawObjectives.toMap()
+            BetonQuest.getInstance().playerDataStorage.get(profile).rawObjectives.toMap()
         } catch (_: Exception) {
+            emptyMap()
+        } catch (_: LinkageError) {
             emptyMap()
         }
     }

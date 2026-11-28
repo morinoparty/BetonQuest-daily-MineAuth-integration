@@ -8,9 +8,9 @@ serialization = "1.13.0"
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paper" }
 # 3.2.0 からモジュール分割され、本体の jar は空になったため API を含む core を参照する
-betonquest = { group = "org.betonquest.betonquest", name = "core", version = "3.2.0" }
+betonquest = { group = "org.betonquest.betonquest", name = "core", version = "3.3.0" }
 # BetonQuestApi などの公開 API は api モジュールにある
-betonquest-api = { group = "org.betonquest.betonquest", name = "api", version = "3.2.0" }
+betonquest-api = { group = "org.betonquest.betonquest", name = "api", version = "3.3.0" }
 mineauth-api = { group = "party.morino", name = "mineauth-api", version = "0.7.1" }
 
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
