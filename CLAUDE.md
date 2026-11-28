@@ -27,7 +27,7 @@ MineAuth本体のbetonquestアドオンは汎用的な機能のみを提供し�
 ## 主な技術スタック
 - Kotlin (言語)
 - PaperMC (MinecraftプラグインAPI)
-- BetonQuest 3.2.0 (クエストシステム)
+- BetonQuest 3.3.0 (クエストシステム)
 - [NotEnoughQuest-QuestFiles](https://github.com/morinoparty/NotEnoughQuest-QuestFiles) v2.1.x (クエストファイル。パッケージ名などは `quest/QuestFileLayout.kt` にまとめている)
 - MineAuth API (HTTP API連携)
 - kotlinx.serialization (JSON)
@@ -39,7 +39,7 @@ MineAuth本体のbetonquestアドオンは汎用的な機能のみを提供し�
 - **MineAuth API**: Maven Central (`party.morino:mineauth-api`、Java 25 が必要)
   - ローカル開発時は `mavenLocal()` で上書き可能
   - MineAuthリポジトリで `./gradlew :api:publishToMavenLocal` を実行
-- **BetonQuest**: `org.betonquest.betonquest:core` / `api` 3.2.0 (compileOnly、推移的依存なし)
+- **BetonQuest**: `org.betonquest.betonquest:core` / `api` 3.3.0 (compileOnly、推移的依存なし)
 - **Paper API**: `io.papermc.paper:paper-api` (compileOnly)
 
 ## ディレクトリ配置規則
