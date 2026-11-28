@@ -1,9 +1,11 @@
 package party.morino.betonquest.daily.mineauth
 
+import org.betonquest.betonquest.api.BetonQuestApiService
 import org.bukkit.plugin.java.JavaPlugin
 import party.morino.betonquest.daily.mineauth.config.PluginConfig
 import party.morino.betonquest.daily.mineauth.routes.DailyQuestHandler
-import party.morino.mineauth.api.MineAuthAPI
+import party.morino.mineauth.api.EndpointRegistrationException
+import party.morino.mineauth.api.MineAuthApi
 
 /**
  * BetonQuestデイリークエストのMineAuth連携プラグイン
@@ -11,62 +13,49 @@ import party.morino.mineauth.api.MineAuthAPI
  */
 class DailyQuestMineAuthPlugin : JavaPlugin() {
 
-    private lateinit var mineAuthAPI: MineAuthAPI
-    private lateinit var pluginConfig: PluginConfig
+    private companion object {
+        // MineAuth の URL 名前空間。プラグイン名は 32 文字を超えるため短い名前を明示する
+        const val MINEAUTH_NAMESPACE = "dailyquest"
+    }
 
     override fun onEnable() {
         logger.info("BetonQuest DailyQuest MineAuth integration enabling...")
 
         // config.ymlの読み込み
         saveDefaultConfig()
-        pluginConfig = PluginConfig.fromBukkitConfig(config)
+        val pluginConfig = PluginConfig.fromBukkitConfig(config)
         logger.info("Daily reset time: ${pluginConfig.dailyResetTime}")
 
-        // MineAuthAPIの取得
-        val mineAuthPlugin = server.pluginManager.getPlugin("MineAuth")
-        val api = mineAuthPlugin as? MineAuthAPI
-        if (api == null) {
-            logger.severe("MineAuth plugin not found or is not a valid MineAuthAPI instance")
-            server.pluginManager.disablePlugin(this)
-            return
-        }
-        mineAuthAPI = api
-
-        // BetonQuestプラグインの存在確認
-        if (!verifyBetonQuest()) {
-            logger.severe("BetonQuest plugin not found")
+        // BetonQuest 3.2.0 以降は ServicesManager 経由で API を取得する
+        val betonQuestApi = BetonQuestApiService.get().orElse(null)?.api(this)
+        if (betonQuestApi == null) {
+            logger.severe("BetonQuest API service is not available")
             server.pluginManager.disablePlugin(this)
             return
         }
 
-        // MineAuthにデイリークエストハンドラーを登録
-        setupMineAuth()
+        // MineAuth はロード済みだがサービス登録前という狭い窓のみ null になる
+        val mineAuthApi = MineAuthApi.get(server)
+        if (mineAuthApi == null) {
+            logger.severe("MineAuth service is not registered")
+            server.pluginManager.disablePlugin(this)
+            return
+        }
+
+        try {
+            val registration = mineAuthApi.register(this, MINEAUTH_NAMESPACE, DailyQuestHandler(pluginConfig, betonQuestApi))
+            logger.info("Mounted ${registration.endpoints.size} endpoints under ${registration.basePath}")
+        } catch (e: EndpointRegistrationException) {
+            // 登録は all-or-nothing のため、検証エラーの詳細をログに出す
+            logger.severe("Failed to register MineAuth endpoints: ${e.message}")
+            server.pluginManager.disablePlugin(this)
+            return
+        }
 
         logger.info("BetonQuest DailyQuest MineAuth integration enabled")
     }
 
     override fun onDisable() {
         logger.info("BetonQuest DailyQuest MineAuth integration disabled")
-    }
-
-    /**
-     * BetonQuestプラグインの検証
-     */
-    private fun verifyBetonQuest(): Boolean {
-        val bqPlugin = server.pluginManager.getPlugin("BetonQuest")
-        if (bqPlugin == null || !bqPlugin.isEnabled) {
-            logger.warning("BetonQuest plugin not found or not enabled")
-            return false
-        }
-        logger.info("BetonQuest plugin found: ${bqPlugin.pluginMeta.version}")
-        return true
-    }
-
-    /**
-     * MineAuthにデイリークエストハンドラーを登録する
-     */
-    private fun setupMineAuth() {
-        mineAuthAPI.createHandler(this)
-            .register(DailyQuestHandler(pluginConfig))
     }
 }

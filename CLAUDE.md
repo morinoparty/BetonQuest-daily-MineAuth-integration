@@ -22,12 +22,13 @@
 BetonQuestのデイリークエストシステム（ExtraBeton）の進捗情報を、MineAuthのHTTP API経由で公開します。
 
 MineAuth本体のbetonquestアドオンは汎用的な機能のみを提供し、
-デイリークエスト固有のロジック（InternalManager, State, DisplayStorageの解析）はこのプラグインに分離されています。
+デイリークエスト固有のロジック（InternalManager, QuestStatus, DisplayStorageの解析）はこのプラグインに分離されています。
 
 ## 主な技術スタック
 - Kotlin (言語)
 - PaperMC (MinecraftプラグインAPI)
-- BetonQuest 3.0.0 (クエストシステム)
+- BetonQuest 3.2.0 (クエストシステム)
+- [NotEnoughQuest-QuestFiles](https://github.com/morinoparty/NotEnoughQuest-QuestFiles) v2.1.x (クエストファイル。パッケージ名などは `quest/QuestFileLayout.kt` にまとめている)
 - MineAuth API (HTTP API連携)
 - kotlinx.serialization (JSON)
 - kotlinx.coroutines (非同期処理)
@@ -35,10 +36,10 @@ MineAuth本体のbetonquestアドオンは汎用的な機能のみを提供し�
 
 ## 依存関係
 
-- **MineAuth API**: JitPack経由 (`com.github.morinoparty.MineAuth:api`)
+- **MineAuth API**: Maven Central (`party.morino:mineauth-api`、Java 25 が必要)
   - ローカル開発時は `mavenLocal()` で上書き可能
   - MineAuthリポジトリで `./gradlew :api:publishToMavenLocal` を実行
-- **BetonQuest**: `org.betonquest:betonquest:3.0.0-SNAPSHOT` (compileOnly)
+- **BetonQuest**: `org.betonquest.betonquest:core` / `api` 3.2.0 (compileOnly、推移的依存なし)
 - **Paper API**: `io.papermc.paper:paper-api` (compileOnly)
 
 ## ディレクトリ配置規則
@@ -47,11 +48,18 @@ MineAuth本体のbetonquestアドオンは汎用的な機能のみを提供し�
 src/main/kotlin/party/morino/betonquest/daily/mineauth/
 ├── DailyQuestMineAuthPlugin.kt    # プラグインエントリーポイント
 ├── data/                           # データクラス
-│   └── DailyQuestData.kt
+│   ├── DailyQuestData.kt
+│   └── DailyQuestInfo.kt
+├── quest/                          # クエストファイルの構造（パッケージ名・難易度など）
+│   ├── QuestFileLayout.kt
+│   ├── QuestDifficulty.kt
+│   └── QuestPackagePath.kt
 ├── routes/                         # MineAuth HTTPハンドラー
 │   └── DailyQuestHandler.kt
 └── utils/                          # ユーティリティ
+    ├── BetonQuestScripts.kt        # アクション・コンディションの実行
     ├── DailyQuestExtractor.kt      # デイリークエスト抽出ロジック
+    ├── MiniMessageText.kt          # MiniMessage -> プレーンテキスト
     ├── VariableDataParser.kt       # BetonQuest VariableObjective解析
     └── coroutines/                 # カスタムコルーチンディスパッチャー
         ├── DispatcherContainer.kt
@@ -61,8 +69,14 @@ src/main/kotlin/party/morino/betonquest/daily/mineauth/
 
 ## エンドポイント
 
-- `GET /api/v1/plugins/betonquest-dailyquest-mineauth/daily-quests/me`
-  - 認証済みプレイヤーのデイリークエスト進捗を返却
+MineAuth の名前空間は `dailyquest`（プラグイン名は 32 文字を超えるため明示している）。
+
+- `GET /api/v1/plugins/dailyquest/daily-quests/me`
+  - 認証済みプレイヤーの受注状況・リロール残り回数・デイリークエスト進捗を返却
+- `POST /api/v1/plugins/dailyquest/daily-quests/me/select` (`{"difficulty": "easy" | "normal" | "hard"}`)
+  - 未受注のときだけ、ゲーム内の会話と同じ流れで受注する（受注済みは 409、オフラインは 400）
+- `POST /api/v1/plugins/dailyquest/daily-quests/me/reroll`
+  - `Reroll$start` を実行し、未受注に戻す（オフラインは 400）
 
 
 # コーディングプラクティス
@@ -103,8 +117,10 @@ MCCoroutineは使用しません。独自の`MinecraftCoroutineDispatcher`を使
 
 ## BetonQuest API
 
-- `rawObjectives`はログイン時のDBスナップショットです。オンラインプレイヤーのライブデータには`Objective.getData(profile)`を使用してください。
-- `VariableObjective.VariableData.deserializeData()`でvariableデータをデシリアライズします。
+- API は `BetonQuestApiService.get()` から `api(plugin)` で取得します。
+- ID は `<パッケージ>><名前>` 形式です（3.2.0 から区切りが `>`）。
+- `rawObjectives`はログイン時のDBスナップショットです。オンラインプレイヤーのライブデータには`objectives().manager().getForProfile(profile)`で得た Objective の `service.data[profile]` を使用してください。
+- `VariableObjective.VariableData.deserializeData()`でvariableデータをデシリアライズします。stage objective のデータはステージ名そのものです。
 
 
 # Version Control
