@@ -8,38 +8,27 @@ import org.betonquest.betonquest.api.profile.Profile
 import org.bukkit.Bukkit
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
-import party.morino.betonquest.daily.mineauth.data.ActionResponse
 import party.morino.betonquest.daily.mineauth.data.DailyQuestResponse
-import party.morino.betonquest.daily.mineauth.data.QuestSelectRequest
-import party.morino.betonquest.daily.mineauth.quest.QuestDifficulty
 import party.morino.betonquest.daily.mineauth.quest.QuestFileLayout
-import party.morino.betonquest.daily.mineauth.utils.BetonQuestScripts
 import party.morino.betonquest.daily.mineauth.utils.DailyQuestExtractor
 import party.morino.betonquest.daily.mineauth.utils.coroutines.minecraft
 import party.morino.mineauth.api.annotations.Authenticated
-import party.morino.mineauth.api.annotations.Body
 import party.morino.mineauth.api.annotations.Caller
 import party.morino.mineauth.api.annotations.Get
-import party.morino.mineauth.api.annotations.Post
 import party.morino.mineauth.api.auth.Principal
-import party.morino.mineauth.api.http.HttpError
-import party.morino.mineauth.api.http.HttpStatus
 
 /**
  * デイリークエスト情報を提供するハンドラー
  * /api/v1/plugins/dailyquest/ 配下にエンドポイントを提供する
  *
- * 受注・リロールはプレイヤーが資源サーバーにいるときだけ実行できる。
- * オフラインの Profile では objective がメモリ上で有効にならず、variable アクション（InternalManager / DisplayStorage への登録）が失敗するため
+ * 閲覧専用。受注・リロールはゲーム内の受付だけで行う
+ * （Web からも実行できると、ゲーム内と同時に実行してリロールを重ねて使えてしまうため）
  *
  * @param api BetonQuest の API
  */
 class DailyQuestHandler(
     private val api: BetonQuestApi
 ) {
-
-    // クエストファイルのアクション・コンディションの実行
-    private val scripts = BetonQuestScripts(api)
 
     /**
      * 認証済みプレイヤーのデイリークエストデータを取得する
@@ -87,124 +76,11 @@ class DailyQuestHandler(
     }
 
     /**
-     * デイリークエストのリロールを実行する
-     * POST /daily-quests/me/reroll
-     *
-     * クエストファイルの Reroll$start を実行し、現在のクエストを破棄して未受注に戻す。
-     * リロールポイントの不足や、目標達成済みのクエストがある場合はアクション側の条件で実行されない
-     *
-     * @param caller 認証済みプレイヤー
-     * @return アクション実行結果
-     */
-    @Post("/daily-quests/me/reroll")
-    @Authenticated
-    suspend fun rerollDailyQuests(@Caller caller: Principal.User): ActionResponse {
-        return withContext(Dispatchers.minecraft) {
-            // アクションの実行にはオンラインプレイヤーが必要（BetonQuest の OnlineProfile）
-            val profile = api.profiles().getProfile(requireOnlinePlayer(caller))
-            runScript("reroll") {
-                val success = scripts.runAction(profile, QuestFileLayout.DAILY_QUEST_PACKAGE, QuestFileLayout.REROLL_ACTION)
-                if (success) {
-                    ActionResponse(success = true, message = "Daily quests rerolled successfully")
-                } else {
-                    ActionResponse(success = false, message = "Reroll conditions not met")
-                }
-            }
-        }
-    }
-
-    /**
-     * 指定された難易度でその日のデイリークエストを受注する
-     * POST /daily-quests/me/select
-     *
-     * ゲーム内の会話と同じく、未受注のときだけ Main$destroy → Main$initialize → QuestSelector の順に実行する。
-     * 受注済みのときに実行できると、達成済みのクエストを消して報酬を何度も受け取れてしまうため 409 を返す
-     *
-     * @param caller 認証済みプレイヤー
-     * @param request クエスト選択リクエスト（難易度を指定）
-     * @return アクション実行結果
-     */
-    @Post("/daily-quests/me/select")
-    @Authenticated
-    suspend fun selectDailyQuest(
-        @Caller caller: Principal.User,
-        @Body request: QuestSelectRequest
-    ): ActionResponse {
-        // 難易度の入力バリデーション
-        val difficulty = QuestDifficulty.fromRequest(request.difficulty)
-            ?: throw HttpError(
-                HttpStatus.BAD_REQUEST,
-                "Invalid difficulty: '${request.difficulty}'. Must be one of: easy, normal, hard"
-            )
-        val selectorAction = QuestFileLayout.SELECTOR_ACTIONS.getValue(difficulty)
-
-        return withContext(Dispatchers.minecraft) {
-            val profile = api.profiles().getProfile(requireOnlinePlayer(caller))
-            val playerData = api.persistence().of(profile)
-
-            // 受注済みなら何もしない（会話でも未受注のときしか選択肢が出ない）
-            if (playerData.tags().has(QuestFileLayout.MAIN_INITIALIZED_TAG)) {
-                throw HttpError(HttpStatus.CONFLICT, "Daily quests are already ordered today", "already_ordered")
-            }
-
-            runScript("select quest") {
-                // 会話の 1_answer_* と同じ順で実行する
-                scripts.runAction(profile, QuestFileLayout.DAILY_QUEST_PACKAGE, QuestFileLayout.MAIN_DESTROY_ACTION)
-                scripts.runAction(profile, QuestFileLayout.DAILY_QUEST_PACKAGE, QuestFileLayout.MAIN_INITIALIZE_ACTION)
-                scripts.runAction(profile, QuestFileLayout.QUESTS_PACKAGE, selectorAction)
-
-                // 登録数が足りなければ会話の 2_repair と同じく修復し、受け直してもらう
-                val shouldRepair = scripts.testCondition(
-                    profile,
-                    QuestFileLayout.DAILY_QUEST_PACKAGE,
-                    QuestFileLayout.QUEST_REPAIR_CONDITION
-                )
-                if (shouldRepair) {
-                    scripts.runAction(profile, QuestFileLayout.DAILY_QUEST_PACKAGE, QuestFileLayout.QUEST_REPAIR_ACTION)
-                    ActionResponse(success = false, message = "Quest registration failed. Please order again")
-                } else {
-                    ActionResponse(success = true, message = "Quest selected with difficulty: ${request.difficulty}")
-                }
-            }
-        }
-    }
-
-    /**
-     * クエストファイルのアクション実行時の例外を 500 に変換する
-     * HttpError はそのまま投げ直す
-     */
-    private inline fun runScript(label: String, block: () -> ActionResponse): ActionResponse = try {
-        block()
-    } catch (e: HttpError) {
-        throw e
-    } catch (e: Exception) {
-        throw HttpError(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to $label: ${e.message}")
-    }
-
-
-    /**
      * オンラインなら OnlineProfile、オフラインなら Profile を返す
      * ProfileProvider.getProfile(Player) だけが OnlineProfile を返すため、オンライン時は Player 経由で取得する
      */
     private fun profileOf(player: OfflinePlayer, onlinePlayer: Player?): Profile =
         if (onlinePlayer != null) api.profiles().getProfile(onlinePlayer) else api.profiles().getProfile(player)
-
-    /**
-     * プレイヤーが資源サーバーにオンラインであることを確認する
-     *
-     * オフラインの Profile では variable objective に値を書けず、受注が途中で失敗して
-     * QuestRepair の Main$forceDestroy（リロールのポイントも消える）が走るため、オフラインは 400 で断る
-     *
-     * @param caller 認証済みプレイヤー
-     * @return オンラインの Player インスタンス
-     * @throws HttpError プレイヤーがオフラインの場合
-     */
-    private fun requireOnlinePlayer(caller: Principal.User): Player {
-        return Bukkit.getPlayer(caller.uuid)
-            ?: throw HttpError(HttpStatus.BAD_REQUEST, "Player must be online to perform this action", "player_offline")
-    }
-
-
 
     /**
      * オブジェクティブデータのマップを構築する

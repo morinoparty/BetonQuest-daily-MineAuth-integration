@@ -27,15 +27,4 @@ enum class QuestDifficulty(val packageSegment: String) {
     // パッケージパスから判定できなかった場合
     @SerialName("unknown")
     UNKNOWN("");
-
-    companion object {
-        /**
-         * リクエストの文字列（"easy" など）から受注できる難易度を求める
-         *
-         * @param value 小文字・大文字を問わない難易度名
-         * @return 受注に使える難易度。該当しなければ null
-         */
-        fun fromRequest(value: String): QuestDifficulty? =
-            QuestFileLayout.SELECTOR_ACTIONS.keys.firstOrNull { it.name.equals(value, ignoreCase = true) }
-    }
 }

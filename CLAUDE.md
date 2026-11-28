@@ -57,7 +57,6 @@ src/main/kotlin/party/morino/betonquest/daily/mineauth/
 ├── routes/                         # MineAuth HTTPハンドラー
 │   └── DailyQuestHandler.kt
 └── utils/                          # ユーティリティ
-    ├── BetonQuestScripts.kt        # アクション・コンディションの実行
     ├── DailyQuestExtractor.kt      # デイリークエスト抽出ロジック
     ├── MiniMessageText.kt          # MiniMessage -> プレーンテキスト
     ├── VariableDataParser.kt       # BetonQuest VariableObjective解析
@@ -73,10 +72,7 @@ MineAuth の名前空間は `dailyquest`（プラグイン名は 32 文字を超
 
 - `GET /api/v1/plugins/dailyquest/daily-quests/me`
   - 認証済みプレイヤーの受注状況・リロール残り回数・デイリークエスト進捗を返却
-- `POST /api/v1/plugins/dailyquest/daily-quests/me/select` (`{"difficulty": "easy" | "normal" | "hard"}`)
-  - 未受注のときだけ、ゲーム内の会話と同じ流れで受注する（受注済みは 409、オフラインは 400 `player_offline`）
-- `POST /api/v1/plugins/dailyquest/daily-quests/me/reroll`
-  - `Reroll$start` を実行し、未受注に戻す（オフラインは 400 `player_offline`）
+- 閲覧専用。受注・リロールはゲーム内の受付だけで行う（Web からも実行できると、ゲーム内と同時に実行してリロールを重ねて使えてしまうため）
 
 
 # コーディングプラクティス
