@@ -28,7 +28,9 @@ repositories {
 dependencies {
     compileOnly(libs.mineauth.api)
     compileOnly(libs.paper.api)
-    compileOnly(libs.betonquest)
+    // core の依存には BetonQuest のリポジトリに無いもの (faststats など) が含まれるため、推移的依存は取り込まない
+    compileOnly(libs.betonquest) { isTransitive = false }
+    compileOnly(libs.betonquest.api) { isTransitive = false }
 
     implementation(libs.bundles.commands)
 
@@ -61,7 +63,7 @@ tasks {
     runServer {
         minecraftVersion("26.3")
         val plugins = runPaper.downloadPluginsSpec {
-            url("https://repo.betonquest.org/betonquest/org/betonquest/betonquest/3.0.0-SNAPSHOT/betonquest-3.0.0-20250713.111222-343-shaded.jar")
+            url("https://repo.betonquest.org/betonquest/org/betonquest/betonquest/3.2.0/betonquest-3.2.0-shaded.jar")
         }
         downloadPlugins {
             downloadPlugins.from(plugins)

@@ -7,8 +7,11 @@ serialization = "1.13.0"
 
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paper" }
-betonquest = { group = "org.betonquest", name = "betonquest", version = "3.0.0-20250713.111222-343" }
-mineauth-api = { group = "com.github.morinoparty.MineAuth", name = "mineauth-api", version = "v0.2.24" }
+# 3.2.0 からモジュール分割され、本体の jar は空になったため API を含む core を参照する
+betonquest = { group = "org.betonquest.betonquest", name = "core", version = "3.2.0" }
+# BetonQuestApi などの公開 API は api モジュールにある
+betonquest-api = { group = "org.betonquest.betonquest", name = "api", version = "3.2.0" }
+mineauth-api = { group = "party.morino", name = "mineauth-api", version = "0.7.1" }
 
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutine" }
@@ -22,7 +25,7 @@ cloudPaper = { group = "org.incendo", name = "cloud-paper", version.ref = "cloud
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.4.21" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.4.21" }
-shadow = { id = "com.gradleup.shadow", version = "9.7.0-SNAPSHOT" }
+shadow = { id = "com.gradleup.shadow", version = "9.6.1" }
 run-paper = { id = "xyz.jpenilla.run-paper", version = "3.1.0" }
 resource-factory = { id = "xyz.jpenilla.resource-factory", version = "1.4.0" }
 
